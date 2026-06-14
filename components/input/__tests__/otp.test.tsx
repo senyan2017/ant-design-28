@@ -324,4 +324,99 @@ describe('Input.OTP', () => {
     expect(input).toHaveStyle('color: rgb(255, 0, 0)');
     expect(separator).toHaveStyle('color: rgb(0, 0, 255)');
   });
+
+  describe('IME composition', () => {
+    it('should not process intermediate composition input', () => {
+      const onChange = jest.fn();
+      const onInput = jest.fn();
+      const { container } = render(<OTP length={4} onChange={onChange} onInput={onInput} />);
+
+      const input = container.querySelector('input')!;
+
+      // Start IME composition
+      fireEvent.compositionStart(input);
+
+      // Intermediate keystrokes during composition should be ignored
+      fireEvent.input(input, { target: { value: 'n' } });
+      fireEvent.input(input, { target: { value: 'ni' } });
+      fireEvent.input(input, { target: { value: 'nih' } });
+
+      expect(onChange).not.toHaveBeenCalled();
+      expect(onInput).not.toHaveBeenCalled();
+
+      // End composition with final character
+      fireEvent.compositionEnd(input, { target: { value: '你' } });
+
+      expect(onInput).toHaveBeenCalledTimes(1);
+      expect(onInput).toHaveBeenCalledWith(['你']);
+      expect(onChange).not.toHaveBeenCalled(); // Not all cells filled yet
+    });
+
+    it('should fill cells correctly after composition ends', () => {
+      const onChange = jest.fn();
+      const { container } = render(<OTP length={4} onChange={onChange} />);
+
+      const inputs = container.querySelectorAll('input');
+
+      // Compose first character
+      fireEvent.compositionStart(inputs[0]);
+      fireEvent.input(inputs[0], { target: { value: 'z' } });
+      fireEvent.input(inputs[0], { target: { value: 'zh' } });
+      fireEvent.compositionEnd(inputs[0], { target: { value: '中' } });
+
+      // Compose second character
+      fireEvent.compositionStart(inputs[1]);
+      fireEvent.input(inputs[1], { target: { value: 'w' } });
+      fireEvent.compositionEnd(inputs[1], { target: { value: '文' } });
+
+      // Fill remaining cells with normal input
+      fireEvent.input(inputs[2], { target: { value: 'A' } });
+      fireEvent.input(inputs[3], { target: { value: 'B' } });
+
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(onChange).toHaveBeenCalledWith('中文AB');
+    });
+
+    it('should not switch cell via arrow keys during composition', () => {
+      const { container } = render(<OTP length={4} autoFocus defaultValue="1234" />);
+
+      const inputs = Array.from(container.querySelectorAll('input'));
+      inputs[0].focus();
+      expect(document.activeElement).toBe(inputs[0]);
+
+      // Start composition
+      fireEvent.compositionStart(inputs[0]);
+
+      // Arrow keys during composition should NOT switch cells
+      fireEvent.keyDown(inputs[0], { key: 'ArrowRight' });
+      expect(document.activeElement).toBe(inputs[0]);
+
+      // End composition
+      fireEvent.compositionEnd(inputs[0], { target: { value: 'X' } });
+
+      // Arrow keys should work again after composition ends
+      fireEvent.keyDown(inputs[0], { key: 'ArrowRight' });
+      expect(document.activeElement).toBe(inputs[1]);
+    });
+
+    it('should handle composition followed by normal input without duplicates', () => {
+      const onChange = jest.fn();
+      const { container } = render(<OTP length={4} onChange={onChange} />);
+
+      const inputs = container.querySelectorAll('input');
+
+      // Compose first cell
+      fireEvent.compositionStart(inputs[0]);
+      fireEvent.input(inputs[0], { target: { value: 'a' } });
+      fireEvent.compositionEnd(inputs[0], { target: { value: '啊' } });
+
+      // Normal input in subsequent cells
+      fireEvent.input(inputs[1], { target: { value: 'B' } });
+      fireEvent.input(inputs[2], { target: { value: 'C' } });
+      fireEvent.input(inputs[3], { target: { value: 'D' } });
+
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(onChange).toHaveBeenCalledWith('啊BCD');
+    });
+  });
 });

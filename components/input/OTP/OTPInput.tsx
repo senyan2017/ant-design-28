@@ -26,8 +26,30 @@ const OTPInput = React.forwardRef<InputRef, OTPInputProps>((props, ref) => {
 
   React.useImperativeHandle(ref, () => inputRef.current!);
 
+  // ====================== Composition ======================
+  // Track IME composition state to avoid processing intermediate
+  // input values (e.g. pinyin keystrokes) as committed cell values.
+  const composingRef = React.useRef(false);
+
   // ========================= Input ==========================
   const onInternalChange: React.InputEventHandler<HTMLInputElement> = (e) => {
+    // During IME composition, `input` events fire for every intermediate
+    // keystroke. Ignore them to prevent partial characters from being
+    // treated as committed values (which would cause duplicate characters
+    // and incorrect focus jumping).
+    if (composingRef.current) {
+      return;
+    }
+    onChange(index, (e.target as HTMLInputElement).value);
+  };
+
+  const onCompositionStart = () => {
+    composingRef.current = true;
+  };
+
+  const onCompositionEnd: React.CompositionEventHandler<HTMLInputElement> = (e) => {
+    composingRef.current = false;
+    // Commit the final composed value after IME finishes.
     onChange(index, (e.target as HTMLInputElement).value);
   };
 
@@ -49,6 +71,13 @@ const OTPInput = React.forwardRef<InputRef, OTPInputProps>((props, ref) => {
   // ======================== Keyboard ========================
   const onInternalKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (event) => {
     const { key, ctrlKey, metaKey } = event;
+
+    // Skip cell navigation during IME composition to avoid
+    // interfering with candidate selection (arrow keys, etc.).
+    if (composingRef.current) {
+      syncSelection();
+      return;
+    }
 
     if (key === 'ArrowLeft') {
       onActiveChange(index - 1);
@@ -80,6 +109,8 @@ const OTPInput = React.forwardRef<InputRef, OTPInputProps>((props, ref) => {
         ref={inputRef}
         value={value}
         onInput={onInternalChange}
+        onCompositionStart={onCompositionStart}
+        onCompositionEnd={onCompositionEnd}
         onFocus={onInternalFocus}
         onKeyDown={onInternalKeyDown}
         onMouseDown={syncSelection}
