@@ -1,10 +1,10 @@
 import React from 'react';
-import { omit } from '@rc-component/util';
+import { omit, toArray } from '@rc-component/util';
 import { clsx } from 'clsx';
 
 import { isPresetSize } from '../_util/gapSize';
 import { useOrientation } from '../_util/hooks';
-import { isNonNullable } from '../_util/is';
+import { isFunction, isNonNullable, isReactRenderable } from '../_util/is';
 import { ConfigContext } from '../config-provider';
 import type { ConfigConsumerProps } from '../config-provider';
 import type { FlexProps } from './interface';
@@ -21,6 +21,7 @@ const Flex = React.forwardRef<HTMLElement, React.PropsWithChildren<FlexProps>>((
     gap,
     vertical,
     orientation,
+    separator,
     component: Component = 'div',
     children,
     ...othersProps
@@ -63,6 +64,29 @@ const Flex = React.forwardRef<HTMLElement, React.PropsWithChildren<FlexProps>>((
     mergedStyle.gap = gap;
   }
 
+  // ======================== Separator ========================
+  let mergedChildren: React.ReactNode = children;
+
+  if (isNonNullable(separator)) {
+    const childNodes = toArray(children);
+    const renderableNodes = childNodes.filter(isReactRenderable);
+
+    if (renderableNodes.length > 1) {
+      mergedChildren = renderableNodes.reduce<React.ReactNode[]>((acc, child, index) => {
+        acc.push(child);
+        if (index < renderableNodes.length - 1) {
+          const separatorContent = isFunction(separator) ? separator(index) : separator;
+          acc.push(
+            <span className={`${prefixCls}-separator`} key={`separator-${index}`}>
+              {separatorContent}
+            </span>,
+          );
+        }
+        return acc;
+      }, []);
+    }
+  }
+
   return (
     <Component
       ref={ref}
@@ -70,7 +94,7 @@ const Flex = React.forwardRef<HTMLElement, React.PropsWithChildren<FlexProps>>((
       style={mergedStyle}
       {...omit(othersProps, ['justify', 'wrap', 'align'])}
     >
-      {children}
+      {mergedChildren}
     </Component>
   );
 });

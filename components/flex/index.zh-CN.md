@@ -25,6 +25,7 @@ coverDark: https://mdn.alipayobjects.com/huamei_7uahnr/afts/img/A*8yArQ43EGccAAA
 <code src="./demo/align.tsx">对齐方式</code>
 <code src="./demo/gap.tsx">设置间隙</code>
 <code src="./demo/wrap.tsx">自动换行</code>
+<code src="./demo/separator.tsx">分隔内容</code>
 <code src="./demo/combination.tsx">组合使用</code>
 <code src="./demo/debug.tsx" debug>调试专用</code>
 
@@ -42,6 +43,7 @@ coverDark: https://mdn.alipayobjects.com/huamei_7uahnr/afts/img/A*8yArQ43EGccAAA
 | align | 设置元素在交叉轴方向上的对齐方式 | [align-items](https://developer.mozilla.org/zh-CN/docs/Web/CSS/align-items) | normal |  | × |
 | flex | flex CSS 简写属性 | [flex](https://developer.mozilla.org/zh-CN/docs/Web/CSS/flex) | normal |  | × |
 | gap | 设置网格之间的间隙 | `small` \| `medium` \| `large` \| string \| number | - |  | × |
+| separator | 设置元素之间的分隔内容 | ReactNode \| ((index: number) => ReactNode) | - | 6.5.0 | × |
 | component | 自定义元素类型 | React.ComponentType | `div` |  | × |
 | orientation | 主轴的方向类型 | `horizontal` \| `vertical` | `horizontal` | - | × |
 

@@ -48,6 +48,10 @@ const genFlexStyle: GenerateStyle<FlexToken, CSSObject> = (token) => {
       '&:empty': {
         display: 'none',
       },
+      [`${componentCls}-separator`]: {
+        display: 'inline-flex',
+        alignItems: 'center',
+      },
     },
   };
 };

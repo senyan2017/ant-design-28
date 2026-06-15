@@ -122,4 +122,127 @@ describe('Flex', () => {
       expect(container.querySelector<HTMLDivElement>('.ant-flex-vertical')).not.toBeNull();
     });
   });
+
+  // ============================= separator =============================
+  describe('separator', () => {
+    it('should render separators between children', () => {
+      const { container } = render(
+        <Flex separator="|">
+          <span>A</span>
+          <span>B</span>
+          <span>C</span>
+        </Flex>,
+      );
+      const separators = container.querySelectorAll('.ant-flex-separator');
+      expect(separators).toHaveLength(2);
+      expect(separators[0]).toHaveTextContent('|');
+      expect(separators[1]).toHaveTextContent('|');
+    });
+
+    it('should not render separator when only one child', () => {
+      const { container } = render(
+        <Flex separator="|">
+          <span>A</span>
+        </Flex>,
+      );
+      expect(container.querySelectorAll('.ant-flex-separator')).toHaveLength(0);
+    });
+
+    it('should not render separator when no children', () => {
+      const { container } = render(<Flex separator="|" />);
+      expect(container.querySelectorAll('.ant-flex-separator')).toHaveLength(0);
+    });
+
+    it('should skip null, undefined, false and empty string children', () => {
+      const { container } = render(
+        <Flex separator="|">
+          <span>A</span>
+          {null}
+          {undefined}
+          {false}
+          {''}
+          <span>B</span>
+        </Flex>,
+      );
+      const separators = container.querySelectorAll('.ant-flex-separator');
+      expect(separators).toHaveLength(1);
+    });
+
+    it('should support ReactNode as separator', () => {
+      const { container } = render(
+        <Flex separator={<span data-testid="custom-sep">•</span>}>
+          <span>A</span>
+          <span>B</span>
+        </Flex>,
+      );
+      expect(container.querySelector('[data-testid="custom-sep"]')).toBeTruthy();
+      expect(container.querySelector('[data-testid="custom-sep"]')?.textContent).toBe('•');
+    });
+
+    it('should support function as separator with index', () => {
+      const separatorFn = jest.fn((index: number) => <span>{`sep-${index}`}</span>);
+      const { container } = render(
+        <Flex separator={separatorFn}>
+          <span>A</span>
+          <span>B</span>
+          <span>C</span>
+        </Flex>,
+      );
+      expect(separatorFn).toHaveBeenCalledTimes(2);
+      expect(separatorFn).toHaveBeenCalledWith(0);
+      expect(separatorFn).toHaveBeenCalledWith(1);
+      const separators = container.querySelectorAll('.ant-flex-separator');
+      expect(separators).toHaveLength(2);
+      expect(separators[0]).toHaveTextContent('sep-0');
+      expect(separators[1]).toHaveTextContent('sep-1');
+    });
+
+    it('should work with vertical direction', () => {
+      const { container } = render(
+        <Flex vertical separator="—">
+          <span>A</span>
+          <span>B</span>
+        </Flex>,
+      );
+      expect(container.querySelector('.ant-flex-vertical')).toBeTruthy();
+      expect(container.querySelectorAll('.ant-flex-separator')).toHaveLength(1);
+    });
+
+    it('should work with gap and wrap', () => {
+      const { container } = render(
+        <Flex gap="small" wrap separator="|">
+          <span>A</span>
+          <span>B</span>
+          <span>C</span>
+        </Flex>,
+      );
+      const flexEl = container.querySelector('.ant-flex');
+      expect(flexEl).toHaveClass('ant-flex-gap-small');
+      expect(flexEl).toHaveClass('ant-flex-wrap-wrap');
+      expect(container.querySelectorAll('.ant-flex-separator')).toHaveLength(2);
+    });
+
+    it('should not affect existing className and style', () => {
+      const { container } = render(
+        <Flex className="custom-cls" style={{ color: 'red' }} separator="|">
+          <span>A</span>
+          <span>B</span>
+        </Flex>,
+      );
+      const flexEl = container.querySelector('.ant-flex');
+      expect(flexEl).toHaveClass('custom-cls');
+      expect(flexEl).toHaveStyle({ color: 'red' });
+    });
+
+    it('should not insert separators when separator prop is not provided', () => {
+      const { container } = render(
+        <Flex>
+          <span>A</span>
+          <span>B</span>
+          <span>C</span>
+        </Flex>,
+      );
+      expect(container.querySelectorAll('.ant-flex-separator')).toHaveLength(0);
+    });
+  });
 });

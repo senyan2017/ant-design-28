@@ -24,12 +24,13 @@ coverDark: https://mdn.alipayobjects.com/huamei_7uahnr/afts/img/A*8yArQ43EGccAAA
 <code src="./demo/align.tsx">align</code>
 <code src="./demo/gap.tsx">gap</code>
 <code src="./demo/wrap.tsx">Wrap</code>
+<code src="./demo/separator.tsx">Separator</code>
 <code src="./demo/combination.tsx">combination</code>
 <code src="./demo/debug.tsx" debug>debug</code>
 
 ## API
 
-> This component is available since `antd@5.10.0`. The default behavior of Flex in horizontal mode is to align upward, In vertical mode, aligns the stretch, You can adjust this via properties.
+> This component is available since `antd@5.10.0`. The default behavior of Flex in horizontal mode is to align upward, In vertical mode, aligns the stretch, You can adjust via properties.
 
 Common props ref：[Common props](/docs/react/common-props)
 
@@ -41,6 +42,7 @@ Common props ref：[Common props](/docs/react/common-props)
 | align | Sets the alignment of elements in the direction of the cross axis | [align-items](https://developer.mozilla.org/en-US/docs/Web/CSS/align-items) | normal |  | × |
 | flex | flex CSS shorthand properties | [flex](https://developer.mozilla.org/en-US/docs/Web/CSS/flex) | normal |  | × |
 | gap | Sets the gap between grids | `small` \| `medium` \| `large` \| string \| number | - |  | × |
+| separator | Sets the separator between elements | ReactNode \| ((index: number) => ReactNode) | - | 6.5.0 | × |
 | component | custom element type | React.ComponentType | `div` |  | × |
 | orientation | direction of the flex | `horizontal` \| `vertical` | `horizontal` | - | × |
 
