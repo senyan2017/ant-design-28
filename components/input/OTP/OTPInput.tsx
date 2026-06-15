@@ -16,7 +16,18 @@ export interface OTPInputProps extends Omit<InputProps, 'onChange'> {
 }
 
 const OTPInput = React.forwardRef<InputRef, OTPInputProps>((props, ref) => {
-  const { className, value, onChange, onActiveChange, index, mask, onFocus, ...restProps } = props;
+  const {
+    className,
+    value,
+    onChange,
+    onActiveChange,
+    index,
+    mask,
+    onFocus,
+    onCompositionStart,
+    onCompositionEnd,
+    ...restProps
+  } = props;
   const { getPrefixCls } = React.useContext(ConfigContext);
   const prefixCls = getPrefixCls('otp');
   const maskValue = typeof mask === 'string' ? mask : value;
@@ -26,9 +37,44 @@ const OTPInput = React.forwardRef<InputRef, OTPInputProps>((props, ref) => {
 
   React.useImperativeHandle(ref, () => inputRef.current!);
 
+  // ====================== Composition =======================
+  // Track IME composition so intermediate values (e.g. pinyin) are neither committed as cell
+  // values nor used to advance the active cell. Only the final confirmed value is committed.
+  const compositionRef = React.useRef(false);
+  // Value committed on `compositionend`. Browsers disagree on event order: Chrome fires the
+  // final `input` *before* `compositionend`, while Firefox emits an extra `input` *after* it.
+  // We commit on `compositionend` (covers Chrome) and use this to drop the trailing Firefox
+  // `input`, so a single composition never commits its value twice.
+  const composingValueRef = React.useRef<string | null>(null);
+
   // ========================= Input ==========================
   const onInternalChange: React.InputEventHandler<HTMLInputElement> = (e) => {
-    onChange(index, (e.target as HTMLInputElement).value);
+    const nextValue = (e.target as HTMLInputElement).value;
+    // Ignore intermediate states emitted while the IME is composing.
+    if (compositionRef.current) {
+      return;
+    }
+    // Drop the duplicated `input` some browsers emit right after `compositionend`.
+    const isCompositionEcho = composingValueRef.current === nextValue;
+    composingValueRef.current = null;
+    if (isCompositionEcho) {
+      return;
+    }
+    onChange(index, nextValue);
+  };
+
+  const onInternalCompositionStart: React.CompositionEventHandler<HTMLInputElement> = (e) => {
+    compositionRef.current = true;
+    onCompositionStart?.(e);
+  };
+
+  const onInternalCompositionEnd: React.CompositionEventHandler<HTMLInputElement> = (e) => {
+    compositionRef.current = false;
+    const nextValue = (e.currentTarget as HTMLInputElement).value;
+    // Remember the committed value so the trailing `input` echo (see above) is ignored.
+    composingValueRef.current = nextValue;
+    onChange(index, nextValue);
+    onCompositionEnd?.(e);
   };
 
   // ========================= Focus ==========================
@@ -48,6 +94,12 @@ const OTPInput = React.forwardRef<InputRef, OTPInputProps>((props, ref) => {
 
   // ======================== Keyboard ========================
   const onInternalKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (event) => {
+    // While composing, keys belong to the IME (e.g. Backspace edits the buffer), so do not
+    // hijack them for cell navigation.
+    if (compositionRef.current) {
+      return;
+    }
+
     const { key, ctrlKey, metaKey } = event;
 
     if (key === 'ArrowLeft') {
@@ -82,6 +134,8 @@ const OTPInput = React.forwardRef<InputRef, OTPInputProps>((props, ref) => {
         onInput={onInternalChange}
         onFocus={onInternalFocus}
         onKeyDown={onInternalKeyDown}
+        onCompositionStart={onInternalCompositionStart}
+        onCompositionEnd={onInternalCompositionEnd}
         onMouseDown={syncSelection}
         onMouseUp={syncSelection}
         className={clsx(className, { [`${prefixCls}-mask-input`]: mask })}
