@@ -199,6 +199,98 @@ describe('Masonry', () => {
     expect(getColumns()).toEqual(['0-0', '1-1', '2-2', '3-0', '4-2']);
   });
 
+  it('should keep onLayoutChange in sync after items change', async () => {
+    const onLayoutChange = jest.fn();
+    const makeItems = (list: number[]) =>
+      list.map((height, index) => ({ key: `item-${index}`, data: height }));
+
+    const { container, rerender } = render(
+      <DemoMasonry
+        columns={2}
+        items={makeItems([100, 100, 100, 100])}
+        onLayoutChange={onLayoutChange}
+      />,
+    );
+    await resizeMasonry();
+
+    const getColumns = () =>
+      Array.from(container.querySelectorAll('.bamboo')).map((ele) =>
+        Number(ele.getAttribute('data-column')),
+      );
+    const lastLayout = () =>
+      onLayoutChange.mock.calls[onLayoutChange.mock.calls.length - 1][0] as any[];
+
+    // Initial emit matches the rendered columns and item count.
+    expect(lastLayout()).toHaveLength(4);
+    expect(lastLayout().map((info) => info.column)).toEqual(getColumns());
+
+    onLayoutChange.mockClear();
+
+    // Update: rebalance heights and append a new item.
+    rerender(
+      <DemoMasonry
+        columns={2}
+        items={makeItems([10, 200, 10, 10, 10])}
+        onLayoutChange={onLayoutChange}
+      />,
+    );
+    await resizeMasonry();
+
+    // Callback re-fires and reflects the new list instead of stale data.
+    expect(onLayoutChange).toHaveBeenCalled();
+    expect(lastLayout()).toHaveLength(5);
+    expect(lastLayout().map((info) => info.key)).toEqual([
+      'item-0',
+      'item-1',
+      'item-2',
+      'item-3',
+      'item-4',
+    ]);
+    expect(lastLayout().map((info) => info.column)).toEqual(getColumns());
+
+    // Container height tracks the tallest column after the update.
+    expect(container.querySelector('.ant-masonry')).toHaveStyle({ height: '200px' });
+  });
+
+  it('should re-measure on item resize only when `fresh` is set', async () => {
+    const renderMasonry = (fresh?: boolean) =>
+      render(
+        <DemoMasonry
+          columns={1}
+          items={[
+            { key: 'a', data: 100 },
+            { key: 'b', data: 100 },
+          ]}
+          fresh={fresh}
+        />,
+      );
+
+    const growFirstItem = (container: HTMLElement) => {
+      const firstItem = container.querySelector<HTMLElement>('.ant-masonry-item')!;
+      firstItem.querySelector('.bamboo')!.setAttribute('data-height', '300');
+      triggerResize(firstItem);
+    };
+
+    // Without `fresh`, an item-level resize is ignored (single column => 100 + 100).
+    const plain = renderMasonry(false);
+    await resizeMasonry();
+    expect(plain.container.querySelector('.ant-masonry')).toHaveStyle({ height: '200px' });
+
+    growFirstItem(plain.container);
+    await waitFakeTimer();
+    expect(plain.container.querySelector('.ant-masonry')).toHaveStyle({ height: '200px' });
+    plain.unmount();
+
+    // With `fresh`, the same resize is picked up (300 + 100).
+    const withFresh = renderMasonry(true);
+    await resizeMasonry();
+    expect(withFresh.container.querySelector('.ant-masonry')).toHaveStyle({ height: '200px' });
+
+    growFirstItem(withFresh.container);
+    await waitFakeTimer();
+    expect(withFresh.container.querySelector('.ant-masonry')).toHaveStyle({ height: '400px' });
+  });
+
   it('not crash for empty items', async () => {
     render(<Masonry />);
     await resizeMasonry();

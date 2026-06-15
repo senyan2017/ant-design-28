@@ -8,7 +8,13 @@ export default function useRefs() {
   }
 
   const setRef = (key: React.Key, element: HTMLDivElement | null) => {
-    ref.current!.set(key, element);
+    if (element) {
+      ref.current!.set(key, element);
+    } else {
+      // Drop the entry when its element unmounts so removed items don't leave
+      // stale refs lingering in the map.
+      ref.current!.delete(key);
+    }
   };
 
   const getRef = (key: React.Key) => ref.current!.get(key);

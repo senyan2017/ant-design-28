@@ -2,7 +2,7 @@ import * as React from 'react';
 import type { CSSProperties } from 'react';
 import { CSSMotionList } from '@rc-component/motion';
 import ResizeObserver from '@rc-component/resize-observer';
-import { composeRef, isEqual, useLayoutEffect } from '@rc-component/util';
+import { composeRef } from '@rc-component/util';
 import { clsx } from 'clsx';
 
 import { useMergeSemantic } from '../_util/hooks/useMergeSemantic';
@@ -16,10 +16,9 @@ import type { RowProps } from '../grid';
 import useBreakpoint from '../grid/hooks/useBreakpoint';
 import useGutter from '../grid/hooks/useGutter';
 import { genCssVar } from '../theme/util/genStyleUtils';
-import useDelay from './hooks/useDelay';
+import useLayoutChange from './hooks/useLayoutChange';
+import useMeasure from './hooks/useMeasure';
 import usePositions from './hooks/usePositions';
-import type { ItemHeightData } from './hooks/usePositions';
-import useRefs from './hooks/useRefs';
 import MasonryItem from './MasonryItem';
 import type { MasonryItemType } from './MasonryItem';
 import useStyle from './style';
@@ -72,8 +71,6 @@ export interface MasonryRef {
   nativeElement: HTMLDivElement;
 }
 
-type ItemColumnsType = [item: MasonryItemType, column: number];
-
 const Masonry = React.forwardRef<MasonryRef, MasonryProps>((props, ref) => {
   const {
     rootClassName,
@@ -114,9 +111,13 @@ const Masonry = React.forwardRef<MasonryRef, MasonryProps>((props, ref) => {
     nativeElement: containerRef.current!,
   }));
 
-  const [setItemRef, getItemRef] = useRefs();
-
   // ======================= Item =======================
+  // Defer the item list into state set from an effect so the very first render
+  // (e.g. SSR via `renderToString`, where effects never run) stays empty. Item
+  // positions depend on heights that are only measurable after mount, so
+  // painting items before measurement would emit an unstacked layout. Both the
+  // rendered list and the `onLayoutChange` payload read from this same
+  // `mergedItems`, so they always describe the identical set of items.
   const [mergedItems, setMergedItems] = React.useState<MasonryItemType[]>([]);
 
   React.useEffect(() => {
@@ -164,22 +165,12 @@ const Masonry = React.forwardRef<MasonryRef, MasonryProps>((props, ref) => {
     },
   );
 
-  // ================== Items Position ==================
-  const [itemHeights, setItemHeights] = React.useState<ItemHeightData[]>([]);
+  // ================== Measurement ===================
+  // Collects DOM sizes of rendered items via refs + RAF-batched reads.
+  const { setItemRef, itemHeights, triggerMeasure } = useMeasure(mergedItems);
 
-  const collectItemSize = useDelay(() => {
-    const nextItemsHeight = mergedItems.map<ItemHeightData>((item, index) => {
-      const itemKey = item.key ?? index;
-      const itemEle = getItemRef(itemKey);
-      const rect = itemEle?.getBoundingClientRect();
-      return [itemKey, rect ? rect.height : 0, item.column];
-    });
-
-    setItemHeights((prevItemsHeight) =>
-      isEqual(prevItemsHeight, nextItemsHeight) ? prevItemsHeight : nextItemsHeight,
-    );
-  });
-
+  // ================== Positions =====================
+  // Assigns each item to a column using shortest-column-first.
   const [itemPositions, totalHeight] = usePositions(
     itemHeights,
     columnCount,
@@ -203,34 +194,18 @@ const Masonry = React.forwardRef<MasonryRef, MasonryProps>((props, ref) => {
     [mergedItems, itemPositions],
   );
 
+  // Re-measure whenever the item set or the column count changes.
   React.useEffect(() => {
-    collectItemSize();
+    triggerMeasure();
   }, [mergedItems, columnCount]);
 
-  // Trigger for `onLayoutChange`
-  const [itemColumns, setItemColumns] = React.useState<ItemColumnsType[]>([]);
-
-  useLayoutEffect(() => {
-    if (onLayoutChange && itemWithPositions.every(({ position }) => position)) {
-      setItemColumns((prevItemColumns) => {
-        const nextItemColumns = itemWithPositions.map<ItemColumnsType>(({ item, position }) => [
-          item,
-          position!.column,
-        ]);
-        return isEqual(prevItemColumns, nextItemColumns) ? prevItemColumns : nextItemColumns;
-      });
-    }
-  }, [itemWithPositions]);
-
-  useLayoutEffect(() => {
-    if (onLayoutChange && items && items.length === itemColumns.length) {
-      onLayoutChange(itemColumns.map(([item, column]) => ({ ...item, column })));
-    }
-  }, [itemColumns]);
+  // ================ Layout Callback =================
+  // Fires `onLayoutChange` when column assignments change.
+  useLayoutChange(onLayoutChange, itemWithPositions, mergedItems);
 
   // ====================== Render ======================
   return (
-    <ResizeObserver onResize={collectItemSize}>
+    <ResizeObserver onResize={triggerMeasure}>
       <div
         ref={containerRef}
         className={clsx(
@@ -244,9 +219,9 @@ const Masonry = React.forwardRef<MasonryRef, MasonryProps>((props, ref) => {
           { [`${prefixCls}-rtl`]: direction === 'rtl' },
         )}
         style={{ height: totalHeight, ...mergedStyles.root, ...contextStyle, ...style }}
-        // Listen for image events
-        onLoad={collectItemSize}
-        onError={collectItemSize}
+        // Listen for image events that may change item sizes
+        onLoad={triggerMeasure}
+        onError={triggerMeasure}
       >
         <CSSMotionList
           keys={itemWithPositions}
@@ -288,7 +263,7 @@ const Masonry = React.forwardRef<MasonryRef, MasonryProps>((props, ref) => {
                 index={itemIndex}
                 itemRender={itemRender}
                 column={columnIndex}
-                onResize={fresh ? collectItemSize : null}
+                onResize={fresh ? triggerMeasure : null}
               />
             );
           }}
